@@ -212,24 +212,13 @@ class _LoginScreenState extends State<LoginScreen>
       children: [
         // Logo placeholder - can be replaced with actual logo
         Container(
-          width: 64,
-          height: 64,
+          width: 100,
+          height: 100,
           decoration: BoxDecoration(
-            color: AppColors.earthyCoral,
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.earthyCoral.withOpacity(0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
-          child: const Icon(
-            Icons.admin_panel_settings_rounded,
-            color: AppColors.white,
-            size: 36,
-          ),
+          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
         ),
         const SizedBox(height: 24),
         Text(

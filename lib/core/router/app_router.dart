@@ -6,6 +6,7 @@ import '../../features/dashboard/views/overview_screen.dart';
 import '../../features/dashboard/views/main_layout.dart';
 import '../../features/analytics/views/analytics_screen.dart';
 import '../../features/moderation/views/moderation_screen.dart';
+import '../../features/splash/splash_screen.dart';
 import '../../core/widgets/placeholder_screen.dart';
 
 /// App router configuration with authentication guards
@@ -15,11 +16,22 @@ class AppRouter {
   AppRouter(this.authViewModel);
 
   late final GoRouter router = GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/splash', // Changed from /login
     debugLogDiagnostics: true,
     refreshListenable: authViewModel, // Listen to auth state changes
     redirect: _handleRedirect,
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const SplashScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
       GoRoute(
         path: '/login',
         name: 'login',
@@ -129,15 +141,21 @@ class AppRouter {
   String? _handleRedirect(BuildContext context, GoRouterState state) {
     // Check auth status from ViewModel directly
     final isAuthenticated = authViewModel.status == AuthStatus.authenticated;
-    final isOnLoginPage = state.matchedLocation == '/login';
+    final isOnSplash = state.matchedLocation == '/splash';
+    final isOnLogin = state.matchedLocation == '/login';
+
+    // Allow splash screen to handle its own logic/navigation
+    if (isOnSplash) {
+      return null;
+    }
 
     // If not authenticated and not on login page, redirect to login
-    if (!isAuthenticated && !isOnLoginPage) {
+    if (!isAuthenticated && !isOnLogin) {
       return '/login';
     }
 
     // If authenticated and on login page, redirect to dashboard
-    if (isAuthenticated && isOnLoginPage) {
+    if (isAuthenticated && isOnLogin) {
       return '/dashboard';
     }
 

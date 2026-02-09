@@ -152,7 +152,7 @@ class _MainLayoutState extends State<MainLayout> {
       accountEmail: Text(user?.email ?? ''),
       currentAccountPicture: const CircleAvatar(
         backgroundColor: Colors.white,
-        child: Icon(Icons.admin_panel_settings, color: AppColors.earthyCoral),
+        backgroundImage: AssetImage('assets/images/logo.png'),
       ),
     );
   }
