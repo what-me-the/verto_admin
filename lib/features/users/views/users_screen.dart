@@ -1,5 +1,6 @@
 ﻿import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -17,6 +18,37 @@ const _borderColor = Color(0xFFE2E8F0);
 const _textPrimary = Color(0xFF1E293B);
 const _textSecondary = Color(0xFF64748B);
 const _headerBg = Color(0xFFF1F5F9);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clipboard helper
+// ─────────────────────────────────────────────────────────────────────────────
+void _showCopied(BuildContext ctx, String message) {
+  ScaffoldMessenger.of(ctx)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_outline,
+                size: 16, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: _textPrimary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8)),
+        width: 280,
+      ),
+    );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Root widget
@@ -498,6 +530,24 @@ class _UsersContent extends StatelessWidget {
                     .copyWith(color: _textSecondary, fontSize: 13),
               ),
               const Spacer(),
+              // ── Bulk copy emails ────────────────────────────────────────
+              Tooltip(
+                message: 'Copy all visible emails to clipboard',
+                child: OutlinedButton.icon(
+                  onPressed: () => _copyBulkEmails(context, vm.users),
+                  icon: const Icon(Icons.content_copy_outlined, size: 15),
+                  label: const Text('Copy Emails'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _textPrimary,
+                    side: const BorderSide(color: _borderColor),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () => _exportUsers(context, vm.users),
                 icon: const Icon(Icons.download_outlined, size: 16),
@@ -537,6 +587,22 @@ class _UsersContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _copyBulkEmails(BuildContext context, List<UserProfile> users) {
+    final emails = users
+        .map((u) => u.email ?? '')
+        .where((e) => e.isNotEmpty)
+        .join('\n');
+    if (emails.isEmpty) {
+      _showCopied(context, 'No emails to copy');
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: emails)).then((_) {
+      final count = users.where((u) => (u.email ?? '').isNotEmpty).length;
+      _showCopied(context,
+          '$count email${count == 1 ? '' : 's'} copied to clipboard');
+    });
   }
 
   void _exportUsers(BuildContext context, List<UserProfile> users) {
@@ -787,11 +853,18 @@ class _UsersTableState extends State<_UsersTable> {
   }
 
   // ── Data cell ─────────────────────────────────────────────────────────────
-  Widget _dataCell(int col, UserProfile u) {
+  Widget _dataCell(BuildContext ctx, int col, UserProfile u) {
     final numeric = _numeric[col];
     Widget cell;
     switch (col) {
       case 0:
+        // Name column: avatar | text | copy-email icon
+        const avatarW = 30.0;   // diameter
+        const avatarSpacing = 10.0;
+        const copyBtnW = 26.0;
+        const copyBtnSpacing = 4.0;
+        final textW = _widths[0] - avatarW - avatarSpacing -
+            copyBtnW - copyBtnSpacing;
         cell = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -806,9 +879,9 @@ class _UsersTableState extends State<_UsersTable> {
                     fontSize: 12),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: avatarSpacing),
             SizedBox(
-              width: _widths[0] - 42,
+              width: textW,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -825,6 +898,33 @@ class _UsersTableState extends State<_UsersTable> {
                 ],
               ),
             ),
+            const SizedBox(width: copyBtnSpacing),
+            // Per-row email copy button
+            if (u.email != null)
+              SizedBox(
+                width: copyBtnW,
+                height: copyBtnW,
+                child: Tooltip(
+                  message: 'Copy email',
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () {
+                      Clipboard.setData(
+                              ClipboardData(text: u.email!))
+                          .then((_) => _showCopied(
+                              ctx, 'Email copied to clipboard'));
+                    },
+                    child: const Icon(
+                      Icons.content_copy_rounded,
+                      size: 14,
+                      color: _textSecondary,
+                    ),
+                  ),
+                ),
+              )
+            else
+              const SizedBox(width: copyBtnW),
           ],
         );
         break;
@@ -895,7 +995,7 @@ class _UsersTableState extends State<_UsersTable> {
   }
 
   // ── Data row ──────────────────────────────────────────────────────────────
-  Widget _buildRow(UserProfile u) {
+  Widget _buildRow(BuildContext ctx, UserProfile u) {
     return Container(
       height: _rowHeight,
       decoration: const BoxDecoration(
@@ -906,7 +1006,7 @@ class _UsersTableState extends State<_UsersTable> {
         children: List.generate(_widths.length, (i) => Padding(
           padding: EdgeInsets.only(
               right: i < _widths.length - 1 ? _colSpacing : 0),
-          child: _dataCell(i, u),
+          child: _dataCell(ctx, i, u),
         )),
       ),
     );
@@ -955,7 +1055,7 @@ class _UsersTableState extends State<_UsersTable> {
               child: ListView.builder(
                 itemCount: _sorted.length,
                 itemExtent: _rowHeight,
-                itemBuilder: (_, index) => _buildRow(_sorted[index]),
+                itemBuilder: (ctx, index) => _buildRow(ctx, _sorted[index]),
               ),
             ),
           ),
