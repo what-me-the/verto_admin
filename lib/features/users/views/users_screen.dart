@@ -522,47 +522,69 @@ class _UsersContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                '${vm.users.length} user${vm.users.length == 1 ? '' : 's'} found',
-                style: AppTypography.bodyMedium
-                    .copyWith(color: _textSecondary, fontSize: 13),
-              ),
-              const Spacer(),
-              // ── Bulk copy emails ────────────────────────────────────────
-              Tooltip(
-                message: 'Copy all visible emails to clipboard',
-                child: OutlinedButton.icon(
-                  onPressed: () => _copyBulkEmails(context, vm.users),
-                  icon: const Icon(Icons.content_copy_outlined, size: 15),
-                  label: const Text('Copy Emails'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _textPrimary,
-                    side: const BorderSide(color: _borderColor),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () => _exportUsers(context, vm.users),
-                icon: const Icon(Icons.download_outlined, size: 16),
-                label: const Text('Export to Excel'),
+          LayoutBuilder(builder: (ctx, box) {
+            final isNarrow = box.maxWidth < 480;
+            final copyBtn = Tooltip(
+              message: 'Copy all visible emails to clipboard',
+              child: OutlinedButton.icon(
+                onPressed: () => _copyBulkEmails(context, vm.users),
+                icon: const Icon(Icons.content_copy_outlined, size: 15),
+                label: const Text('Copy Emails'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: _textPrimary,
                   side: const BorderSide(color: _borderColor),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                      horizontal: 14, vertical: 10),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
               ),
-            ],
-          ),
+            );
+            final exportBtn = OutlinedButton.icon(
+              onPressed: () => _exportUsers(context, vm.users),
+              icon: const Icon(Icons.download_outlined, size: 16),
+              label: const Text('Export to Excel'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _textPrimary,
+                side: const BorderSide(color: _borderColor),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+            if (isNarrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${vm.users.length} user${vm.users.length == 1 ? '' : 's'} found',
+                    style: AppTypography.bodyMedium
+                        .copyWith(color: _textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [copyBtn, exportBtn],
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Text(
+                  '${vm.users.length} user${vm.users.length == 1 ? '' : 's'} found',
+                  style: AppTypography.bodyMedium
+                      .copyWith(color: _textSecondary, fontSize: 13),
+                ),
+                const Spacer(),
+                copyBtn,
+                const SizedBox(width: 8),
+                exportBtn,
+              ],
+            );
+          }),
           const SizedBox(height: 12),
           Expanded(
             child: Container(
@@ -796,7 +818,7 @@ class _UsersTableState extends State<_UsersTable> {
       });
 
   // ── Header cell ───────────────────────────────────────────────────────────
-  Widget _headerCell(int i) {
+  Widget _headerCell(int i, double width) {
     final isSorted = _sortCol == i && _sortable[i];
     final numeric = _numeric[i];
 
@@ -840,7 +862,7 @@ class _UsersTableState extends State<_UsersTable> {
         cursor:
             _sortable[i] ? SystemMouseCursors.click : MouseCursor.defer,
         child: SizedBox(
-          width: _widths[i],
+          width: width,
           height: _headerHeight,
           child: Align(
             alignment:
@@ -853,7 +875,7 @@ class _UsersTableState extends State<_UsersTable> {
   }
 
   // ── Data cell ─────────────────────────────────────────────────────────────
-  Widget _dataCell(BuildContext ctx, int col, UserProfile u) {
+  Widget _dataCell(BuildContext ctx, int col, UserProfile u, double width) {
     final numeric = _numeric[col];
     Widget cell;
     switch (col) {
@@ -863,7 +885,7 @@ class _UsersTableState extends State<_UsersTable> {
         const avatarSpacing = 10.0;
         const copyBtnW = 26.0;
         const copyBtnSpacing = 4.0;
-        final textW = _widths[0] - avatarW - avatarSpacing -
+        final textW = width - avatarW - avatarSpacing -
             copyBtnW - copyBtnSpacing;
         cell = Row(
           mainAxisSize: MainAxisSize.min,
@@ -984,7 +1006,7 @@ class _UsersTableState extends State<_UsersTable> {
     }
 
     return SizedBox(
-      width: _widths[col],
+      width: width,
       height: _rowHeight,
       child: Align(
         alignment:
@@ -995,7 +1017,17 @@ class _UsersTableState extends State<_UsersTable> {
   }
 
   // ── Data row ──────────────────────────────────────────────────────────────
-  Widget _buildRow(BuildContext ctx, UserProfile u) {
+  // ── Responsive width computation ─────────────────────────────────────────
+  List<double> _computeEffectiveWidths(double available) {
+    if (available <= _totalWidth) return List.from(_widths);
+    final fixedContentWidth = _widths.fold(0.0, (s, w) => s + w);
+    final availContent =
+        available - _hPad * 2 - _colSpacing * (_widths.length - 1);
+    final scale = availContent / fixedContentWidth;
+    return _widths.map((w) => w * scale).toList();
+  }
+
+  Widget _buildRow(BuildContext ctx, UserProfile u, List<double> widths) {
     return Container(
       height: _rowHeight,
       decoration: const BoxDecoration(
@@ -1003,10 +1035,10 @@ class _UsersTableState extends State<_UsersTable> {
       ),
       padding: const EdgeInsets.symmetric(horizontal: _hPad),
       child: Row(
-        children: List.generate(_widths.length, (i) => Padding(
+        children: List.generate(widths.length, (i) => Padding(
           padding: EdgeInsets.only(
-              right: i < _widths.length - 1 ? _colSpacing : 0),
-          child: _dataCell(ctx, i, u),
+              right: i < widths.length - 1 ? _colSpacing : 0),
+          child: _dataCell(ctx, i, u, widths[i]),
         )),
       ),
     );
@@ -1014,54 +1046,70 @@ class _UsersTableState extends State<_UsersTable> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ── Sticky header ─────────────────────────────────────────────────
-        SingleChildScrollView(
-          controller: _headerHScroll,
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: _totalWidth,
-            height: _headerHeight,
-            child: ColoredBox(
-              color: _headerBg,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: _hPad),
-                child: Row(
-                  children: List.generate(
-                    _widths.length,
-                    (i) => Padding(
-                      padding: EdgeInsets.only(
-                          right: i < _widths.length - 1
-                              ? _colSpacing
-                              : 0),
-                      child: _headerCell(i),
-                    ),
-                  ),
+    return LayoutBuilder(builder: (context, constraints) {
+      final available = constraints.maxWidth;
+      final needsScroll = available < _totalWidth;
+      final widths = _computeEffectiveWidths(available);
+      final tableWidth = needsScroll ? _totalWidth : available;
+
+      final headerRow = SizedBox(
+        width: tableWidth,
+        height: _headerHeight,
+        child: ColoredBox(
+          color: _headerBg,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _hPad),
+            child: Row(
+              children: List.generate(
+                widths.length,
+                (i) => Padding(
+                  padding: EdgeInsets.only(
+                      right: i < widths.length - 1 ? _colSpacing : 0),
+                  child: _headerCell(i, widths[i]),
                 ),
               ),
             ),
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: _borderColor),
-        // ── Scrollable body ───────────────────────────────────────────────
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _bodyHScroll,
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: _totalWidth,
-              child: ListView.builder(
-                itemCount: _sorted.length,
-                itemExtent: _rowHeight,
-                itemBuilder: (ctx, index) => _buildRow(ctx, _sorted[index]),
+      );
+
+      final bodyList = SizedBox(
+        width: tableWidth,
+        child: ListView.builder(
+          itemCount: _sorted.length,
+          itemExtent: _rowHeight,
+          itemBuilder: (ctx, index) => _buildRow(ctx, _sorted[index], widths),
+        ),
+      );
+
+      if (needsScroll) {
+        return Column(
+          children: [
+            SingleChildScrollView(
+              controller: _headerHScroll,
+              scrollDirection: Axis.horizontal,
+              child: headerRow,
+            ),
+            const Divider(height: 1, thickness: 1, color: _borderColor),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _bodyHScroll,
+                scrollDirection: Axis.horizontal,
+                child: bodyList,
               ),
             ),
-          ),
-        ),
-      ],
-    );
+          ],
+        );
+      }
+
+      return Column(
+        children: [
+          headerRow,
+          const Divider(height: 1, thickness: 1, color: _borderColor),
+          Expanded(child: bodyList),
+        ],
+      );
+    });
   }
 }
 
