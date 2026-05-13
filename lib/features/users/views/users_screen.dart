@@ -144,8 +144,9 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.height < 800;
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      padding: EdgeInsets.fromLTRB(24, compact ? 12 : 24, 24, compact ? 8 : 16),
       color: _cardBg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +175,7 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? 10 : 16),
           Wrap(
             spacing: 12,
             runSpacing: 8,
@@ -315,108 +316,211 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.height < 800;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: EdgeInsets.symmetric(
+          horizontal: 24, vertical: compact ? 8 : 12),
       decoration: const BoxDecoration(
         color: _cardBg,
         border: Border(bottom: BorderSide(color: _borderColor)),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Search
-          SizedBox(
-            width: 280,
-            height: 40,
-            child: TextField(
-              controller: searchCtrl,
-              onChanged: vm.setSearchQuery,
-              decoration: InputDecoration(
-                hintText: 'Search name, email or city…',
-                prefixIcon: const Icon(Icons.search,
-                    size: 18, color: AppColors.slateGray),
-                suffixIcon: vm.searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 16),
-                        onPressed: () {
-                          searchCtrl.clear();
-                          vm.setSearchQuery('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: _borderColor)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: _borderColor)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        const BorderSide(color: AppColors.earthyCoral)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12),
-                filled: true,
-                fillColor: _bgColor,
-              ),
-              style: AppTypography.bodyMedium.copyWith(fontSize: 14),
-            ),
-          ),
-          // City
-          if (vm.cities.isNotEmpty)
-            _DropdownBox<String?>(
-              value: vm.selectedCity,
-              hint: 'All Cities',
-              items: [
-                const DropdownMenuItem<String?>(
-                    value: null, child: Text('All Cities')),
-                ...vm.cities.map((c) => DropdownMenuItem<String?>(
-                    value: c, child: Text(c))),
+          // ── Filters (search + dropdowns) ─────────────────────────────
+          Expanded(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // Search
+                SizedBox(
+                  width: 260,
+                  height: 38,
+                  child: TextField(
+                    controller: searchCtrl,
+                    onChanged: vm.setSearchQuery,
+                    decoration: InputDecoration(
+                      hintText: 'Search name, email or city…',
+                      prefixIcon: const Icon(Icons.search,
+                          size: 18, color: AppColors.slateGray),
+                      suffixIcon: vm.searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () {
+                                searchCtrl.clear();
+                                vm.setSearchQuery('');
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              const BorderSide(color: _borderColor)),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              const BorderSide(color: _borderColor)),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                              color: AppColors.earthyCoral)),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      filled: true,
+                      fillColor: _bgColor,
+                    ),
+                    style:
+                        AppTypography.bodyMedium.copyWith(fontSize: 14),
+                  ),
+                ),
+                // City
+                if (vm.cities.isNotEmpty)
+                  _DropdownBox<String?>(
+                    value: vm.selectedCity,
+                    hint: 'All Cities',
+                    items: [
+                      const DropdownMenuItem<String?>(
+                          value: null, child: Text('All Cities')),
+                      ...vm.cities.map((c) => DropdownMenuItem<String?>(
+                          value: c, child: Text(c))),
+                    ],
+                    onChanged: vm.setCityFilter,
+                  ),
+                // Student filter
+                _DropdownBox<String>(
+                  value: vm.isStudentFilter == null
+                      ? 'all'
+                      : vm.isStudentFilter!
+                          ? 'student'
+                          : 'non_student',
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'all', child: Text('All Users')),
+                    DropdownMenuItem(
+                        value: 'student', child: Text('Students')),
+                    DropdownMenuItem(
+                        value: 'non_student',
+                        child: Text('Non-Students')),
+                  ],
+                  onChanged: (val) {
+                    if (val == 'all') {
+                      vm.setStudentFilter(null);
+                    } else if (val == 'student') {
+                      vm.setStudentFilter(true);
+                    } else {
+                      vm.setStudentFilter(false);
+                    }
+                  },
+                ),
+                // Clear
+                if (vm.selectedCity != null ||
+                    vm.isStudentFilter != null ||
+                    vm.searchQuery.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () {
+                      searchCtrl.clear();
+                      vm.clearFilters();
+                    },
+                    icon: const Icon(Icons.filter_alt_off, size: 16),
+                    label: const Text('Clear filters'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.slateGray),
+                  ),
               ],
-              onChanged: vm.setCityFilter,
             ),
-          // Student filter
-          _DropdownBox<String>(
-            value: vm.isStudentFilter == null
-                ? 'all'
-                : vm.isStudentFilter!
-                    ? 'student'
-                    : 'non_student',
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('All Users')),
-              DropdownMenuItem(
-                  value: 'student', child: Text('Students')),
-              DropdownMenuItem(
-                  value: 'non_student', child: Text('Non-Students')),
-            ],
-            onChanged: (val) {
-              if (val == 'all') {
-                vm.setStudentFilter(null);
-              } else if (val == 'student') {
-                vm.setStudentFilter(true);
-              } else {
-                vm.setStudentFilter(false);
-              }
-            },
           ),
-          // Clear
-          if (vm.selectedCity != null ||
-              vm.isStudentFilter != null ||
-              vm.searchQuery.isNotEmpty)
-            TextButton.icon(
-              onPressed: () {
-                searchCtrl.clear();
-                vm.clearFilters();
-              },
-              icon: const Icon(Icons.filter_alt_off, size: 16),
-              label: const Text('Clear filters'),
-              style: TextButton.styleFrom(
-                  foregroundColor: AppColors.slateGray),
+          // ── Count + action icons (only when data ready) ───────────────
+          if (!vm.isLoading && vm.error == null && vm.users.isNotEmpty) ...[
+            const SizedBox(width: 12),
+            Text(
+              '${vm.users.length} users',
+              style: AppTypography.bodyMedium.copyWith(
+                  fontSize: 12, color: _textSecondary),
             ),
+            Tooltip(
+              message: 'Copy all emails to clipboard',
+              child: IconButton(
+                onPressed: () => _copyBulkEmails(context, vm.users),
+                icon: const Icon(Icons.content_copy_outlined, size: 18),
+                color: _textSecondary,
+                constraints:
+                    const BoxConstraints(minWidth: 34, minHeight: 34),
+                padding: const EdgeInsets.all(6),
+              ),
+            ),
+            Tooltip(
+              message: 'Export to Excel',
+              child: IconButton(
+                onPressed: () => _exportUsers(context, vm.users),
+                icon: const Icon(Icons.download_outlined, size: 18),
+                color: _textSecondary,
+                constraints:
+                    const BoxConstraints(minWidth: 34, minHeight: 34),
+                padding: const EdgeInsets.all(6),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  void _copyBulkEmails(BuildContext context, List<UserProfile> users) {
+    final emails = users
+        .map((u) => u.email ?? '')
+        .where((e) => e.isNotEmpty)
+        .join('\n');
+    if (emails.isEmpty) {
+      _showCopied(context, 'No emails to copy');
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: emails)).then((_) {
+      final count =
+          users.where((u) => (u.email ?? '').isNotEmpty).length;
+      _showCopied(context,
+          '$count email${count == 1 ? '' : 's'} copied to clipboard');
+    });
+  }
+
+  void _exportUsers(BuildContext context, List<UserProfile> users) {
+    final fmt = DateFormat('MMM d, yyyy');
+    ExportService.exportToExcel(
+      context: context,
+      fileName: 'users',
+      headers: const [
+        'Full Name',
+        'Email',
+        'City',
+        'University',
+        'Type',
+        'Pending Trans',
+        'Accepted Trans',
+        'Rejected Trans',
+        'Skipped Trans',
+        'Total Trans',
+        'Joined',
+        'Last Sign In',
+      ],
+      rows: users
+          .map((u) => [
+                u.fullName,
+                u.email ?? '',
+                u.city ?? '',
+                u.universityName ?? '',
+                u.isStudent ? 'Student' : 'General',
+                u.pendingCount,
+                u.approvedCount,
+                u.rejectedCount,
+                u.skippedCount,
+                u.translationCount,
+                fmt.format(u.createdAt),
+                u.lastSignInAt != null
+                    ? fmt.format(u.lastSignInAt!)
+                    : '—',
+              ])
+          .toList(),
     );
   }
 }
@@ -518,152 +622,25 @@ class _UsersContent extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LayoutBuilder(builder: (ctx, box) {
-            final isNarrow = box.maxWidth < 480;
-            final copyBtn = Tooltip(
-              message: 'Copy all visible emails to clipboard',
-              child: OutlinedButton.icon(
-                onPressed: () => _copyBulkEmails(context, vm.users),
-                icon: const Icon(Icons.content_copy_outlined, size: 15),
-                label: const Text('Copy Emails'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _textPrimary,
-                  side: const BorderSide(color: _borderColor),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            );
-            final exportBtn = OutlinedButton.icon(
-              onPressed: () => _exportUsers(context, vm.users),
-              icon: const Icon(Icons.download_outlined, size: 16),
-              label: const Text('Export to Excel'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _textPrimary,
-                side: const BorderSide(color: _borderColor),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-            );
-            if (isNarrow) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${vm.users.length} user${vm.users.length == 1 ? '' : 's'} found',
-                    style: AppTypography.bodyMedium
-                        .copyWith(color: _textSecondary, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [copyBtn, exportBtn],
-                  ),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                Text(
-                  '${vm.users.length} user${vm.users.length == 1 ? '' : 's'} found',
-                  style: AppTypography.bodyMedium
-                      .copyWith(color: _textSecondary, fontSize: 13),
-                ),
-                const Spacer(),
-                copyBtn,
-                const SizedBox(width: 8),
-                exportBtn,
-              ],
-            );
-          }),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: _cardBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _borderColor),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: _UsersTable(users: vm.users),
-              ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: _UsersTable(users: vm.users),
+        ),
       ),
-    );
-  }
-
-  void _copyBulkEmails(BuildContext context, List<UserProfile> users) {
-    final emails = users
-        .map((u) => u.email ?? '')
-        .where((e) => e.isNotEmpty)
-        .join('\n');
-    if (emails.isEmpty) {
-      _showCopied(context, 'No emails to copy');
-      return;
-    }
-    Clipboard.setData(ClipboardData(text: emails)).then((_) {
-      final count = users.where((u) => (u.email ?? '').isNotEmpty).length;
-      _showCopied(context,
-          '$count email${count == 1 ? '' : 's'} copied to clipboard');
-    });
-  }
-
-  void _exportUsers(BuildContext context, List<UserProfile> users) {
-    final fmt = DateFormat('MMM d, yyyy');
-    ExportService.exportToExcel(
-      context: context,
-      fileName: 'users',
-      headers: const [
-        'Full Name',
-        'Email',
-        'City',
-        'University',
-        'Type',
-        'Pending Trans',
-        'Accepted Trans',
-        'Rejected Trans',
-        'Skipped Trans',
-        'Total Trans',
-        'Joined',
-        'Last Sign In',
-      ],
-      rows: users
-          .map((u) => [
-                u.fullName,
-                u.email ?? '',
-                u.city ?? '',
-                u.universityName ?? '',
-                u.isStudent ? 'Student' : 'General',
-                u.pendingCount,
-                u.approvedCount,
-                u.rejectedCount,
-                u.skippedCount,
-                u.translationCount,
-                fmt.format(u.createdAt),
-                u.lastSignInAt != null
-                    ? fmt.format(u.lastSignInAt!)
-                    : '—',
-              ])
-          .toList(),
     );
   }
 }
@@ -1076,6 +1053,7 @@ class _UsersTableState extends State<_UsersTable> {
       final bodyList = SizedBox(
         width: tableWidth,
         child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: _sorted.length,
           itemExtent: _rowHeight,
           itemBuilder: (ctx, index) => _buildRow(ctx, _sorted[index], widths),
