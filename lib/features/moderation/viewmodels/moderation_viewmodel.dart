@@ -1,4 +1,7 @@
-﻿import 'package:flutter/foundation.dart';
+﻿import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../data/moderation_model.dart';
 import '../data/moderation_repository.dart';
 
@@ -22,7 +25,47 @@ class ModerationViewModel extends ChangeNotifier {
   final ModerationRepository _repository;
 
   ModerationViewModel({ModerationRepository? repository})
-      : _repository = repository ?? ModerationRepository();
+      : _repository = repository ?? ModerationRepository() {
+    _setupRealtime();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Realtime
+  // ---------------------------------------------------------------------------
+  RealtimeChannel? _realtimeChannel;
+  Timer? _debounce;
+
+  void _setupRealtime() {
+    _realtimeChannel = SupabaseService.instance.client
+        .channel('moderation_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'translation_attempts',
+          callback: (_) => _debouncedReload(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'skipped_sentences',
+          callback: (_) => _debouncedReload(),
+        )
+        .subscribe();
+  }
+
+  void _debouncedReload() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      loadData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
 
   // ---------------------------------------------------------------------------
   // Loading / error state
@@ -328,20 +371,40 @@ class ModerationViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Log distinct statuses once so we can diagnose data mismatches
+      await _repository.logDistinctStatuses();
+
+      // Fetch pending+reviewed as one query; accepted/rejected/skipped in parallel
       await Future.wait([
-        _fetchSubmitted(),
-        _fetchInReview(),
+        _fetchPendingAndReviewed(),
         _fetchAccepted(),
         _fetchRejected(),
         _fetchSkipped(),
-        _fetchStats(),
       ]);
+
+      // Compute stats AFTER lists are populated so submitted/inReview counts
+      // reflect the same task-based split as the tabs.
+      await _fetchStats();
     } catch (e) {
       _error = 'Failed to load moderation data: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Fetches pending+reviewed in a single query and splits into the two lists:
+  /// • Submitted = pending rows with no review task assigned yet
+  /// • In Review = pending rows WITH a review task  OR  status == 'reviewed'
+  Future<void> _fetchPendingAndReviewed() async {
+    final all = await _repository.fetchPendingAndReviewedTranslations();
+    _submittedTranslations =
+        all.where((t) => t.status == 'pending' && !t.hasReviewTask).toList();
+    _inReviewTranslations = all
+        .where((t) =>
+            t.status == 'reviewed' ||
+            (t.status == 'pending' && t.hasReviewTask))
+        .toList();
   }
 
   Future<void> _fetchSubmitted() async {
@@ -365,7 +428,16 @@ class ModerationViewModel extends ChangeNotifier {
   }
 
   Future<void> _fetchStats() async {
-    _stats = await _repository.fetchModerationStats();
+    // submitted / inReview are derived from the in-memory lists so the counts
+    // in the sidebar match exactly what the tabs show (task-based split).
+    final terminal = await _repository.fetchTerminalStats();
+    _stats = ModerationStats(
+      submitted: _submittedTranslations.length,
+      inReview: _inReviewTranslations.length,
+      approved: terminal.approved,
+      rejected: terminal.rejected,
+      skipped: _skippedTranslations.length,
+    );
   }
 
   // ---------------------------------------------------------------------------

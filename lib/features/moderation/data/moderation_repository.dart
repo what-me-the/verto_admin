@@ -3,24 +3,75 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/services/supabase_service.dart';
 import 'moderation_model.dart';
 
+/// Moderation data repository.
+/// DB CHECK constraint on translation_attempts.status allows:
+///   pending | reviewed | approved | rejected
 class ModerationRepository {
   final SupabaseClient _client = SupabaseService.instance.client;
 
   // ---------------------------------------------------------------------------
-  // Private helper — fetch translation_attempts by a single status value
+  // Diagnostic — call once on startup to verify data visibility
   // ---------------------------------------------------------------------------
+  Future<void> logDistinctStatuses() async {
+    try {
+      // Log who is currently authenticated
+      final user = _client.auth.currentUser;
+      debugPrint('ModerationRepository: current user = ${user?.id ?? "UNAUTHENTICATED"}');
+
+      // Total row count (no filter) — if 0 and you know data exists,
+      // RLS is blocking reads. Run this in Supabase SQL Editor:
+      //
+      //   CREATE POLICY "admins_read_all_attempts"
+      //     ON translation_attempts FOR SELECT
+      //     USING (EXISTS (
+      //       SELECT 1 FROM admin_users
+      //       WHERE user_id = auth.uid() AND is_active = true
+      //     ));
+      //
+      //   -- Also enable realtime if not already done:
+      //   ALTER PUBLICATION supabase_realtime ADD TABLE translation_attempts;
+      //   ALTER PUBLICATION supabase_realtime ADD TABLE skipped_sentences;
+      //   ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
+
+      final countResp = await _client
+          .from('translation_attempts')
+          .count(CountOption.exact);
+      debugPrint('ModerationRepository: total visible rows = $countResp');
+
+      final response = await _client
+          .from('translation_attempts')
+          .select('status')
+          .limit(500);
+      final statuses = (response as List)
+          .map((e) => e['status']?.toString() ?? 'null')
+          .toSet()
+          .toList()
+        ..sort();
+      debugPrint(
+        'ModerationRepository: distinct statuses → ${statuses.isEmpty ? "(no rows visible — check RLS policies)" : statuses.join(", ")}',
+      );
+    } catch (e) {
+      debugPrint('ModerationRepository: diagnostic error — $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+  static const String _joinSelect = '''
+    *,
+    profiles(full_name),
+    sentences(sentence_id, khuwar_text),
+    review_tasks(
+      reviews(rating, notes)
+    )
+  ''';
+
   Future<List<TranslationAttempt>> _fetchByStatus(String status) async {
     try {
       final response = await _client
           .from('translation_attempts')
-          .select('''
-            *,
-            profiles(full_name),
-            sentences(sentence_id, khuwar_text),
-            review_tasks(
-              reviews(rating, notes)
-            )
-          ''')
+          .select(_joinSelect)
           .eq('status', status)
           .order('timestamp', ascending: false);
 
@@ -37,13 +88,49 @@ class ModerationRepository {
   // Per-status fetch methods
   // ---------------------------------------------------------------------------
 
-  /// Newly submitted translations not yet assigned to a reviewer (status = 'pending')
-  Future<List<TranslationAttempt>> fetchSubmittedTranslations() =>
-      _fetchByStatus('pending');
+  /// Fetches all `pending` and `reviewed` rows in one query.
+  /// The caller splits them into Submitted vs In-Review using [hasReviewTask].
+  ///
+  /// • Submitted  = status == 'pending'  && hasReviewTask == false
+  /// • In Review  = status == 'pending'  && hasReviewTask == true
+  ///              OR status == 'reviewed' (review completed, awaiting admin)
+  Future<List<TranslationAttempt>> fetchPendingAndReviewedTranslations() async {
+    try {
+      final response = await _client
+          .from('translation_attempts')
+          .select(_joinSelect)
+          .inFilter('status', ['pending', 'reviewed'])
+          .order('timestamp', ascending: false);
 
-  /// Translations currently being reviewed (status = 'assigned')
-  Future<List<TranslationAttempt>> fetchInReviewTranslations() =>
-      _fetchByStatus('assigned');
+      final list = (response as List)
+          .map((e) => TranslationAttempt.fromJson(e))
+          .toList();
+      debugPrint(
+        'ModerationRepository: fetchPendingAndReviewed → ${list.length} rows '
+        '(pending=${list.where((t) => t.status == "pending" && !t.hasReviewTask).length} submitted, '
+        '${list.where((t) => t.status == "pending" && t.hasReviewTask).length}+${list.where((t) => t.status == "reviewed").length} in-review)',
+      );
+      return list;
+    } catch (e) {
+      debugPrint('Error fetching pending+reviewed translations: $e');
+      rethrow;
+    }
+  }
+
+  // Kept for backward compat — delegates to fetchPendingAndReviewedTranslations
+  Future<List<TranslationAttempt>> fetchSubmittedTranslations() async {
+    final all = await fetchPendingAndReviewedTranslations();
+    return all.where((t) => t.status == 'pending' && !t.hasReviewTask).toList();
+  }
+
+  Future<List<TranslationAttempt>> fetchInReviewTranslations() async {
+    final all = await fetchPendingAndReviewedTranslations();
+    return all
+        .where((t) =>
+            t.status == 'reviewed' ||
+            (t.status == 'pending' && t.hasReviewTask))
+        .toList();
+  }
 
   /// Approved translations (status = 'approved')
   Future<List<TranslationAttempt>> fetchAcceptedTranslations() =>
@@ -58,15 +145,8 @@ class ModerationRepository {
     try {
       final response = await _client
           .from('translation_attempts')
-          .select('''
-            *,
-            profiles(full_name),
-            sentences(sentence_id, khuwar_text),
-            review_tasks(
-              reviews(rating, notes)
-            )
-          ''')
-          .inFilter('status', ['pending', 'assigned'])
+          .select(_joinSelect)
+          .inFilter('status', ['pending', 'reviewed'])
           .order('timestamp', ascending: false);
 
       return (response as List)
@@ -106,7 +186,7 @@ class ModerationRepository {
   // ---------------------------------------------------------------------------
   Future<ModerationStats> fetchModerationStats() async {
     try {
-      final results = await Future.wait([
+      final counts = await Future.wait([
         _client
             .from('translation_attempts')
             .count(CountOption.exact)
@@ -114,7 +194,7 @@ class ModerationRepository {
         _client
             .from('translation_attempts')
             .count(CountOption.exact)
-            .eq('status', 'assigned'),
+            .eq('status', 'reviewed'),
         _client
             .from('translation_attempts')
             .count(CountOption.exact)
@@ -127,15 +207,38 @@ class ModerationRepository {
       ]);
 
       return ModerationStats(
-        submitted: results[0],
-        inReview: results[1],
-        approved: results[2],
-        rejected: results[3],
-        skipped: results[4],
+        submitted: counts[0],
+        inReview: counts[1],
+        approved: counts[2],
+        rejected: counts[3],
+        skipped: counts[4],
       );
     } catch (e) {
-      debugPrint('Error fetching moderation stats: $e');
+      debugPrint('Error fetching moderation stats: \$e');
       return ModerationStats.empty();
+    }
+  }
+
+  /// Lightweight stat fetch — only counts for the terminal statuses
+  /// (approved / rejected / skipped). submitted + inReview are derived
+  /// from the already-fetched in-memory lists so no extra DB round-trips.
+  Future<({int approved, int rejected, int skipped})> fetchTerminalStats() async {
+    try {
+      final counts = await Future.wait([
+        _client
+            .from('translation_attempts')
+            .count(CountOption.exact)
+            .eq('status', 'approved'),
+        _client
+            .from('translation_attempts')
+            .count(CountOption.exact)
+            .eq('status', 'rejected'),
+        _client.from('skipped_sentences').count(CountOption.exact),
+      ]);
+      return (approved: counts[0], rejected: counts[1], skipped: counts[2]);
+    } catch (e) {
+      debugPrint('Error fetching terminal stats: $e');
+      return (approved: 0, rejected: 0, skipped: 0);
     }
   }
 

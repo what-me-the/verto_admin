@@ -150,9 +150,19 @@ class _MainLayoutState extends State<MainLayout> {
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       accountEmail: Text(user?.email ?? ''),
-      currentAccountPicture: const CircleAvatar(
+      currentAccountPicture: CircleAvatar(
         backgroundColor: Colors.white,
-        backgroundImage: AssetImage('assets/images/logo.png'),
+        child: ClipOval(
+          child: Image.asset(
+            'assets/images/logo.png',
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => const Icon(
+              Icons.admin_panel_settings_rounded,
+              size: 30,
+              color: Colors.deepOrange,
+            ),
+          ),
+        ),
       ),
     );
   }

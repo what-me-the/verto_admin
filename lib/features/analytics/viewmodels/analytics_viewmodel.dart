@@ -1,17 +1,48 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../data/analytics_repository.dart';
 import '../data/analytics_summary_model.dart';
 
 class AnalyticsViewModel extends ChangeNotifier {
   final AnalyticsRepository _repository;
   Timer? _autoRefreshTimer;
+  RealtimeChannel? _realtimeChannel;
+  Timer? _realtimeDebounce;
 
   // Auto-refresh interval (30 seconds)
   static const Duration _refreshInterval = Duration(seconds: 30);
 
   AnalyticsViewModel({AnalyticsRepository? repository})
-    : _repository = repository ?? AnalyticsRepository();
+    : _repository = repository ?? AnalyticsRepository() {
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = SupabaseService.instance.client
+        .channel('analytics_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'translation_attempts',
+          callback: (_) => _debouncedSilentReload(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'profiles',
+          callback: (_) => _debouncedSilentReload(),
+        )
+        .subscribe();
+  }
+
+  void _debouncedSilentReload() {
+    _realtimeDebounce?.cancel();
+    _realtimeDebounce = Timer(const Duration(milliseconds: 800), () {
+      loadData(silent: true);
+    });
+  }
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -120,6 +151,8 @@ class AnalyticsViewModel extends ChangeNotifier {
   @override
   void dispose() {
     stopAutoRefresh();
+    _realtimeDebounce?.cancel();
+    _realtimeChannel?.unsubscribe();
     super.dispose();
   }
 }

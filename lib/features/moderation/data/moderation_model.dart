@@ -13,6 +13,8 @@ class TranslationAttempt {
   final String? reviewNotes;
   final String? editedUrdu;
   final String? editedRoman;
+  /// True when this attempt has at least one review_task assigned to a reviewer.
+  final bool hasReviewTask;
 
   TranslationAttempt({
     required this.id,
@@ -29,34 +31,22 @@ class TranslationAttempt {
     this.reviewNotes,
     this.editedUrdu,
     this.editedRoman,
+    this.hasReviewTask = false,
   });
 
   factory TranslationAttempt.fromJson(Map<String, dynamic> json) {
-    // Handle nested joins from Supabase
-    // Expecting:
-    // *, profiles(full_name), sentences(khuwar_text),
-    // reviews(rating, notes, urdu_edited, roman_chitrali_edited) -- accessed via review_tasks usually,
-    // but for pending list we might fetch directly or via task.
-
-    // For simplicity in joining, we'll assume the repository flattens or we parse the nested structure.
-
     final profile = json['profiles'] as Map<String, dynamic>?;
     final sentenceData = json['sentences'] as Map<String, dynamic>?;
 
-    // Attempt to find review data. It might be direct join or nested array.
-    // Ideally we join review_tasks -> reviews.
-    // For 'pending', review might not exist yet or be in progress.
+    final reviewTasks = json['review_tasks'] as List? ?? [];
+    final hasTask = reviewTasks.isNotEmpty;
 
     Map<String, dynamic>? reviewData;
-    // Check if review_tasks is present and has reviews
-    if (json['review_tasks'] != null &&
-        (json['review_tasks'] as List).isNotEmpty) {
-      final tasks = json['review_tasks'] as List;
-      if (tasks.isNotEmpty) {
-        final task = tasks.first;
-        if (task['reviews'] != null && (task['reviews'] as List).isNotEmpty) {
-          reviewData = (task['reviews'] as List).first;
-        }
+    if (hasTask) {
+      final task = reviewTasks.first as Map<String, dynamic>;
+      final reviews = task['reviews'] as List? ?? [];
+      if (reviews.isNotEmpty) {
+        reviewData = reviews.first as Map<String, dynamic>;
       }
     }
 
@@ -70,12 +60,12 @@ class TranslationAttempt {
       romanTranslation: json['roman_chitrali_translation'] ?? '',
       status: json['status'] ?? 'pending',
       submittedAt: DateTime.parse(json['timestamp']).toLocal(),
-      reviewerName:
-          null, // Would need another join on review_tasks -> reviewer_id -> profile
+      reviewerName: null,
       reviewRating: reviewData?['rating'],
       reviewNotes: reviewData?['notes'],
-      editedUrdu: reviewData?['urdu_edited'],
-      editedRoman: reviewData?['roman_chitrali_edited'],
+      editedUrdu: null,
+      editedRoman: null,
+      hasReviewTask: hasTask,
     );
   }
 }

@@ -218,7 +218,15 @@ class _LoginScreenState extends State<LoginScreen>
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+          child: Image.asset(
+                'assets/images/logo.png',
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  size: 60,
+                  color: Colors.deepOrange,
+                ),
+              ),
         ),
         const SizedBox(height: 24),
         Text(

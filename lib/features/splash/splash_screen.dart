@@ -76,8 +76,13 @@ class _SplashScreenState extends State<SplashScreen>
           child: ScaleTransition(
             scale: _scaleAnimation,
             child: Image.asset(
-              'assets/images/logo.png', // Corrected path
-              width: 250, // Adjust size as needed
+              'assets/images/logo.png',
+              width: 250,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.admin_panel_settings_rounded,
+                size: 100,
+                color: Colors.deepOrange,
+              ),
             ),
           ),
         ),

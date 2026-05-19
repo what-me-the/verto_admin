@@ -1,4 +1,7 @@
-﻿import 'package:flutter/foundation.dart';
+﻿import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../data/user_model.dart';
 import '../data/users_repository.dart';
 
@@ -6,7 +9,56 @@ class UsersViewModel extends ChangeNotifier {
   final UsersRepository _repository;
 
   UsersViewModel({UsersRepository? repository})
-      : _repository = repository ?? UsersRepository();
+      : _repository = repository ?? UsersRepository() {
+    _setupRealtime();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Realtime
+  // ---------------------------------------------------------------------------
+  RealtimeChannel? _realtimeChannel;
+  Timer? _debounce;
+
+  void _setupRealtime() {
+    _realtimeChannel = SupabaseService.instance.client
+        .channel('users_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'profiles',
+          callback: (_) => _debouncedReload(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'translation_attempts',
+          callback: (_) => _debouncedAnalyticsReload(),
+        )
+        .subscribe();
+  }
+
+  void _debouncedReload() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      loadUsers();
+    });
+  }
+
+  Timer? _analyticsDebounce;
+  void _debouncedAnalyticsReload() {
+    _analyticsDebounce?.cancel();
+    _analyticsDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (_analyticsLoaded) loadAnalytics(force: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _analyticsDebounce?.cancel();
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
 
   // ---------------------------------------------------------------------------
   // Users state

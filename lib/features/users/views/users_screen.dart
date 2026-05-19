@@ -1538,7 +1538,7 @@ class _CityDistributionChart extends StatelessWidget {
           maxY: maxY * 1.25,
           barTouchData: BarTouchData(
             touchTooltipData: BarTouchTooltipData(
-              getTooltipItem: (g, _, rod, __) {
+              getTooltipItem: (g, _, rod, _) {
                 final city = data[g.x]['city'] as String;
                 return BarTooltipItem(
                   '$city\n${rod.toY.toInt()} users',
@@ -1648,7 +1648,7 @@ class _StudentDistributionChartState
       );
     }
 
-    final pct = (v) =>
+    String pct(v) =>
         '${((v / widget.total) * 100).toStringAsFixed(1)}%';
 
     final sections = [
@@ -1789,7 +1789,7 @@ class _TranslationStatusChart extends StatelessWidget {
                 maxY: maxY * 1.25,
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (g, _, rod, __) {
+                    getTooltipItem: (g, _, rod, _) {
                       final item = data[g.x];
                       return BarTooltipItem(
                         '${item['label']}\n${rod.toY.toInt()}',
