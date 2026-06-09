@@ -547,6 +547,59 @@ class ModerationViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> sendToReview(String id) async {
+    try {
+      await _repository.sendToReview(id);
+
+      final item =
+          _submittedTranslations.where((t) => t.id == id).firstOrNull;
+      _submittedTranslations.removeWhere((t) => t.id == id);
+
+      if (item != null) {
+        _inReviewTranslations.insert(0, item.copyWith(status: 'reviewed'));
+      }
+
+      await _fetchStats();
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to send to review: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> editTranslation(
+    String id,
+    String urdu,
+    String roman,
+  ) async {
+    try {
+      await _repository.editTranslation(id, urdu, roman);
+      _updateInList(_submittedTranslations, id, urdu, roman);
+      _updateInList(_inReviewTranslations, id, urdu, roman);
+      _updateInList(_acceptedTranslations, id, urdu, roman);
+      _updateInList(_rejectedTranslations, id, urdu, roman);
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to edit translation: $e';
+      notifyListeners();
+    }
+  }
+
+  void _updateInList(
+    List<TranslationAttempt> list,
+    String id,
+    String urdu,
+    String roman,
+  ) {
+    final index = list.indexWhere((t) => t.id == id);
+    if (index != -1) {
+      list[index] = list[index].copyWith(
+        urduTranslation: urdu,
+        romanTranslation: roman,
+      );
+    }
+  }
+
   Future<void> unassignSkipped(String id, String sentenceId) async {
     try {
       await _repository.unassignSkipped(id, sentenceId);

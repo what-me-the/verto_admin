@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../data/moderation_model.dart';
 import '../viewmodels/moderation_viewmodel.dart';
 import 'package:provider/provider.dart';
+import 'edit_translation_modal.dart';
 
 class TranslationDetailsModal extends StatefulWidget {
   final TranslationAttempt translation;
@@ -17,6 +18,12 @@ class TranslationDetailsModal extends StatefulWidget {
 class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _skipReasonController = TextEditingController();
+
+  bool get _isActionable =>
+      widget.translation.status == 'pending' ||
+      widget.translation.status == 'reviewed';
+
+  bool get _isSubmitted => widget.translation.status == 'pending';
 
   @override
   void dispose() {
@@ -86,11 +93,40 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
             ),
           ],
         ),
-        IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.close, color: AppColors.slateGray),
+        Row(
+          children: [
+            // Edit button always visible
+            Tooltip(
+              message: 'Edit Translation',
+              child: IconButton(
+                onPressed: () => _openEdit(context),
+                icon: const Icon(Icons.edit_outlined, color: Colors.amber),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.amber.withValues(alpha: 0.1),
+                  padding: const EdgeInsets.all(8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close, color: AppColors.slateGray),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  void _openEdit(BuildContext context) {
+    final vm = context.read<ModerationViewModel>();
+    Navigator.pop(context); // close details first
+    showDialog(
+      context: context,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: vm,
+        child: EditTranslationModal(translation: widget.translation),
+      ),
     );
   }
 
@@ -136,6 +172,7 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
           child: _buildTranslationBox(
             'URDU TRANSLATION',
             widget.translation.urduTranslation,
+            isRtl: true,
           ),
         ),
         const SizedBox(width: 16),
@@ -149,7 +186,7 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
     );
   }
 
-  Widget _buildTranslationBox(String label, String content) {
+  Widget _buildTranslationBox(String label, String content, {bool isRtl = false}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -169,9 +206,16 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            content,
-            style: const TextStyle(fontSize: 16, color: AppColors.darkCharcoal),
+          Directionality(
+            textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+            child: Text(
+              content,
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.darkCharcoal,
+                fontFamily: isRtl ? 'serif' : null,
+              ),
+            ),
           ),
         ],
       ),
@@ -182,20 +226,16 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.softMint.withOpacity(0.1),
+        color: AppColors.softMint.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.softMint.withOpacity(0.3)),
+        border: Border.all(color: AppColors.softMint.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.rate_review,
-                size: 16,
-                color: AppColors.slateGray,
-              ),
+              const Icon(Icons.rate_review, size: 16, color: AppColors.slateGray),
               const SizedBox(width: 8),
               const Text(
                 'REVIEWER FEEDBACK',
@@ -234,41 +274,67 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
     );
   }
 
-  Widget _buildActionButtons(
-    BuildContext context,
-    ModerationViewModel viewModel,
-  ) {
+  Widget _buildActionButtons(BuildContext context, ModerationViewModel viewModel) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        TextButton(
-          onPressed: () => _showSkipDialog(context, viewModel),
-          child: const Text('Skip', style: TextStyle(color: Colors.grey)),
-        ),
-        const SizedBox(width: 8),
-        OutlinedButton(
-          onPressed: () => _showRejectDialog(context, viewModel),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.error,
-            side: const BorderSide(color: AppColors.error),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        if (_isActionable) ...[
+          TextButton(
+            onPressed: () => _showSkipDialog(context, viewModel),
+            child: const Text('Skip', style: TextStyle(color: Colors.grey)),
           ),
-          child: const Text('Reject'),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: () async {
-            await viewModel.approveTranslation(widget.translation.id);
-            if (context.mounted) Navigator.pop(context);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.softMint,
-            foregroundColor: AppColors.darkCharcoal,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            elevation: 0,
+          const SizedBox(width: 8),
+        ],
+        if (_isSubmitted) ...[
+          OutlinedButton.icon(
+            onPressed: () async {
+              await viewModel.sendToReview(widget.translation.id);
+              if (context.mounted) Navigator.pop(context);
+            },
+            icon: const Icon(Icons.rate_review_outlined, size: 15),
+            label: const Text('Send to Review'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.blueAccent,
+              side: const BorderSide(color: Colors.blueAccent),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
           ),
-          child: const Text('Approve'),
-        ),
+          const SizedBox(width: 8),
+        ],
+        if (_isActionable) ...[
+          OutlinedButton(
+            onPressed: () => _showRejectDialog(context, viewModel),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: const BorderSide(color: AppColors.error),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            ),
+            child: const Text('Reject'),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () async {
+              await viewModel.approveTranslation(widget.translation.id);
+              if (context.mounted) Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.softMint,
+              foregroundColor: AppColors.darkCharcoal,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              elevation: 0,
+            ),
+            child: const Text('Approve'),
+          ),
+        ] else ...[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                const Text('Close', style: TextStyle(color: AppColors.slateGray)),
+          ),
+        ],
       ],
     );
   }
@@ -294,18 +360,14 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
             ),
             ElevatedButton(
               onPressed: () async {
-                // In real app, pass reason to rejectTranslation
                 await viewModel.rejectTranslation(widget.translation.id);
                 if (context.mounted) {
-                  Navigator.pop(context); // Close confirm
-                  Navigator.pop(context); // Close detail modal
+                  Navigator.pop(context);
+                  Navigator.pop(context);
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text(
-                'Reject',
-                style: TextStyle(color: Colors.white),
-              ),
+              child: const Text('Reject', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -347,8 +409,8 @@ class _TranslationDetailsModalState extends State<TranslationDetailsModal> {
                   _skipReasonController.text,
                 );
                 if (context.mounted) {
-                  Navigator.pop(context); // Close confirm
-                  Navigator.pop(context); // Close detail modal
+                  Navigator.pop(context);
+                  Navigator.pop(context);
                 }
               },
               child: const Text('Skip'),

@@ -34,6 +34,42 @@ class TranslationAttempt {
     this.hasReviewTask = false,
   });
 
+  TranslationAttempt copyWith({
+    String? id,
+    String? userId,
+    String? userName,
+    String? sentenceId,
+    String? sentence,
+    String? urduTranslation,
+    String? romanTranslation,
+    String? status,
+    DateTime? submittedAt,
+    String? reviewerName,
+    int? reviewRating,
+    String? reviewNotes,
+    String? editedUrdu,
+    String? editedRoman,
+    bool? hasReviewTask,
+  }) {
+    return TranslationAttempt(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      sentenceId: sentenceId ?? this.sentenceId,
+      sentence: sentence ?? this.sentence,
+      urduTranslation: urduTranslation ?? this.urduTranslation,
+      romanTranslation: romanTranslation ?? this.romanTranslation,
+      status: status ?? this.status,
+      submittedAt: submittedAt ?? this.submittedAt,
+      reviewerName: reviewerName ?? this.reviewerName,
+      reviewRating: reviewRating ?? this.reviewRating,
+      reviewNotes: reviewNotes ?? this.reviewNotes,
+      editedUrdu: editedUrdu ?? this.editedUrdu,
+      editedRoman: editedRoman ?? this.editedRoman,
+      hasReviewTask: hasReviewTask ?? this.hasReviewTask,
+    );
+  }
+
   factory TranslationAttempt.fromJson(Map<String, dynamic> json) {
     final profile = json['profiles'] as Map<String, dynamic>?;
     final sentenceData = json['sentences'] as Map<String, dynamic>?;

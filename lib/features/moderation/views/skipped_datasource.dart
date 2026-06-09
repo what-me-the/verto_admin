@@ -41,7 +41,7 @@ class SkippedDataSource extends DataTableSource {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.slateGray.withOpacity(0.1),
+              color: AppColors.slateGray.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(

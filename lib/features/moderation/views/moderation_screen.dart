@@ -245,7 +245,7 @@ class _ModerationContentState extends State<ModerationContent>
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -256,7 +256,7 @@ class _ModerationContentState extends State<ModerationContent>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -320,8 +320,10 @@ class _ModerationContentState extends State<ModerationContent>
                     searchValue: vm.submittedSearch,
                     onSearch: vm.setSubmittedSearch,
                     showActions: true,
+                    showEdit: true,
+                    showReview: true,
                     emptyTitle: 'No submitted translations',
-                    emptySubtitle: 'All caught up â€” no new submissions.',
+                    emptySubtitle: 'All caught up — no new submissions.',
                     tableTitle: 'Submitted Translations',
                     tableIcon: Icons.send_outlined,
                     iconColor: Colors.blue,
@@ -336,6 +338,8 @@ class _ModerationContentState extends State<ModerationContent>
                     searchValue: vm.inReviewSearch,
                     onSearch: vm.setInReviewSearch,
                     showActions: true,
+                    showEdit: true,
+                    showReview: false,
                     emptyTitle: 'No translations in review',
                     emptySubtitle: 'Nothing currently assigned to reviewers.',
                     tableTitle: 'In Review',
@@ -352,6 +356,7 @@ class _ModerationContentState extends State<ModerationContent>
                     searchValue: vm.acceptedSearch,
                     onSearch: vm.setAcceptedSearch,
                     showActions: false,
+                    showEdit: true,
                     emptyTitle: 'No accepted translations yet',
                     emptySubtitle: 'Approved translations will appear here.',
                     tableTitle: 'Accepted Translations',
@@ -368,6 +373,7 @@ class _ModerationContentState extends State<ModerationContent>
                     searchValue: vm.rejectedSearch,
                     onSearch: vm.setRejectedSearch,
                     showActions: false,
+                    showEdit: true,
                     emptyTitle: 'No rejected translations',
                     emptySubtitle: 'Rejected translations will appear here.',
                     tableTitle: 'Rejected Translations',
@@ -412,7 +418,7 @@ class _ModerationContentState extends State<ModerationContent>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.1),
+              color: AppColors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Row(
@@ -439,7 +445,7 @@ class _ModerationContentState extends State<ModerationContent>
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -481,6 +487,8 @@ class _ModerationContentState extends State<ModerationContent>
     required String searchValue,
     required void Function(String) onSearch,
     required bool showActions,
+    bool showEdit = false,
+    bool showReview = false,
     required String emptyTitle,
     required String emptySubtitle,
     required String tableTitle,
@@ -502,6 +510,8 @@ class _ModerationContentState extends State<ModerationContent>
       context,
       vm,
       showActions: showActions,
+      showEdit: showEdit,
+      showReview: showReview,
     );
 
     return Column(
@@ -742,7 +752,7 @@ class _ModerationContentState extends State<ModerationContent>
               border: Border.all(color: _borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -753,7 +763,7 @@ class _ModerationContentState extends State<ModerationContent>
               onChanged: onSearch,
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: TextStyle(color: _textSecondary.withOpacity(0.6)),
+                hintStyle: TextStyle(color: _textSecondary.withValues(alpha: 0.6)),
                 border: InputBorder.none,
                 prefixIcon: const Icon(Icons.search, color: _textSecondary),
                 suffixIcon: searchValue.isNotEmpty
@@ -799,7 +809,7 @@ class _ModerationContentState extends State<ModerationContent>
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -825,7 +835,7 @@ class _ModerationContentState extends State<ModerationContent>
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 64, color: color),

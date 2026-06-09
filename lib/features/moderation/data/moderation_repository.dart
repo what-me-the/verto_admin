@@ -298,6 +298,34 @@ class ModerationRepository {
     }
   }
 
+  Future<void> sendToReview(String attemptId) async {
+    try {
+      await _client
+          .from('translation_attempts')
+          .update({'status': 'reviewed'})
+          .eq('attempt_id', attemptId);
+    } catch (e) {
+      debugPrint('Error sending to review: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> editTranslation(
+    String attemptId,
+    String urdu,
+    String roman,
+  ) async {
+    try {
+      await _client.from('translation_attempts').update({
+        'urdu_translation': urdu,
+        'roman_chitrali_translation': roman,
+      }).eq('attempt_id', attemptId);
+    } catch (e) {
+      debugPrint('Error editing translation: $e');
+      rethrow;
+    }
+  }
+
   Future<void> unassignSkipped(String skipId, String sentenceId) async {
     try {
       await _client.from('skipped_sentences').delete().eq('id', skipId);

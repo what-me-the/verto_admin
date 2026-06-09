@@ -5,21 +5,29 @@ import '../../../../core/theme/app_colors.dart';
 import '../data/moderation_model.dart';
 import '../viewmodels/moderation_viewmodel.dart';
 import '../widgets/translation_details_modal.dart';
+import '../widgets/edit_translation_modal.dart';
 
 class TranslationDataSource extends DataTableSource {
   final List<TranslationAttempt> translations;
   final BuildContext context;
   final ModerationViewModel viewModel;
 
-  /// When true, Approve and Reject action buttons are shown (Submitted / In Review tabs).
-  /// When false, only the View Details button is shown (Accepted / Rejected tabs).
+  /// Show Approve + Reject buttons (Submitted / In Review tabs).
   final bool showActions;
+
+  /// Show Edit button (Submitted / In Review / Accepted / Rejected tabs).
+  final bool showEdit;
+
+  /// Show Send-to-Review button (Submitted tab only).
+  final bool showReview;
 
   TranslationDataSource(
     this.translations,
     this.context,
     this.viewModel, {
     this.showActions = true,
+    this.showEdit = false,
+    this.showReview = false,
   });
 
   @override
@@ -29,7 +37,7 @@ class TranslationDataSource extends DataTableSource {
 
     return DataRow(
       cells: [
-        // ID Column
+        // ID
         DataCell(
           Text(
             item.id.length > 8 ? item.id.substring(0, 8) : item.id,
@@ -40,7 +48,7 @@ class TranslationDataSource extends DataTableSource {
             ),
           ),
         ),
-        // User Column
+        // User
         DataCell(
           Text(
             item.userName,
@@ -50,7 +58,7 @@ class TranslationDataSource extends DataTableSource {
             ),
           ),
         ),
-        // Sentence Column
+        // Sentence
         DataCell(
           Tooltip(
             message: item.sentence,
@@ -64,21 +72,18 @@ class TranslationDataSource extends DataTableSource {
             ),
           ),
         ),
-        // Status Column
+        // Status
         DataCell(_buildStatusBadge(item.status)),
-        // Review Column
+        // Review rating
         DataCell(
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (item.reviewRating != null) ...[
+              if (item.reviewRating != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.1),
+                    color: Colors.amber.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -95,16 +100,12 @@ class TranslationDataSource extends DataTableSource {
                       ),
                     ],
                   ),
-                ),
-              ],
-              if (item.reviewRating == null)
+                )
+              else
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.slateGray.withOpacity(0.1),
+                    color: AppColors.slateGray.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
@@ -115,53 +116,61 @@ class TranslationDataSource extends DataTableSource {
             ],
           ),
         ),
-        // Submitted Column
+        // Submitted
         DataCell(
           Text(
             DateFormat('MMM d, HH:mm').format(item.submittedAt),
             style: const TextStyle(color: AppColors.slateGray, fontSize: 13),
           ),
         ),
-        // Actions Column
+        // Actions
         DataCell(
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Edit
+              if (showEdit) ...[
+                _buildIconAction(
+                  icon: Icons.edit_outlined,
+                  tooltip: 'Edit Translation',
+                  color: Colors.amber.shade700,
+                  onPressed: () => _openEdit(item),
+                ),
+                const SizedBox(width: 4),
+              ],
+              // Send to Review
+              if (showReview) ...[
+                _buildIconAction(
+                  icon: Icons.rate_review_outlined,
+                  tooltip: 'Send to Review',
+                  color: Colors.blueAccent,
+                  onPressed: () => viewModel.sendToReview(item.id),
+                ),
+                const SizedBox(width: 4),
+              ],
+              // Approve
               if (showActions) ...[
-                _buildActionButton(
-                  label: 'Approve',
-                  icon: Icons.check,
+                _buildIconAction(
+                  icon: Icons.check_circle_outline,
+                  tooltip: 'Approve',
                   color: AppColors.softMint,
                   onPressed: () => viewModel.approveTranslation(item.id),
                 ),
-                const SizedBox(width: 6),
-                _buildActionButton(
-                  label: 'Reject',
-                  icon: Icons.close,
+                const SizedBox(width: 4),
+                _buildIconAction(
+                  icon: Icons.cancel_outlined,
+                  tooltip: 'Reject',
                   color: AppColors.error,
-                  isOutlined: true,
                   onPressed: () => viewModel.rejectTranslation(item.id),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
               ],
-              IconButton(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => ChangeNotifierProvider.value(
-                      value: viewModel,
-                      child: TranslationDetailsModal(translation: item),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.visibility_outlined),
-                iconSize: 18,
+              // View details
+              _buildIconAction(
+                icon: Icons.visibility_outlined,
                 tooltip: 'View Details',
-                style: IconButton.styleFrom(
-                  foregroundColor: AppColors.slateGray,
-                  backgroundColor: AppColors.slateGray.withOpacity(0.1),
-                  padding: const EdgeInsets.all(8),
-                ),
+                color: AppColors.slateGray,
+                onPressed: () => _openDetails(item),
               ),
             ],
           ),
@@ -170,49 +179,48 @@ class TranslationDataSource extends DataTableSource {
     );
   }
 
-  Widget _buildActionButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-    bool isOutlined = false,
-  }) {
-    if (isOutlined) {
-      return OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 14),
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-    }
-
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 14),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  void _openEdit(TranslationAttempt item) {
+    showDialog(
+      context: context,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: viewModel,
+        child: EditTranslationModal(translation: item),
       ),
     );
   }
 
-  @override
-  bool get isRowCountApproximate => false;
+  void _openDetails(TranslationAttempt item) {
+    showDialog(
+      context: context,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: viewModel,
+        child: TranslationDetailsModal(translation: item),
+      ),
+    );
+  }
 
-  @override
-  int get rowCount => translations.length;
-
-  @override
-  int get selectedRowCount => 0;
+  Widget _buildIconAction({
+    required IconData icon,
+    required String tooltip,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onPressed,
+          child: Container(
+            padding: const EdgeInsets.all(7),
+            child: Icon(icon, size: 17, color: color),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildStatusBadge(String status) {
     Color color;
@@ -226,13 +234,13 @@ class TranslationDataSource extends DataTableSource {
         color = AppColors.error;
         icon = Icons.cancel;
         break;
+      case 'reviewed':
+        color = Colors.blueAccent;
+        icon = Icons.rate_review;
+        break;
       case 'pending':
         color = Colors.orangeAccent;
         icon = Icons.hourglass_empty;
-        break;
-      case 'assigned':
-        color = Colors.blueAccent;
-        icon = Icons.assignment;
         break;
       default:
         color = Colors.grey;
@@ -242,9 +250,9 @@ class TranslationDataSource extends DataTableSource {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -264,4 +272,13 @@ class TranslationDataSource extends DataTableSource {
       ),
     );
   }
+
+  @override
+  bool get isRowCountApproximate => false;
+
+  @override
+  int get rowCount => translations.length;
+
+  @override
+  int get selectedRowCount => 0;
 }
