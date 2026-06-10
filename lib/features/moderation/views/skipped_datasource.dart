@@ -8,8 +8,21 @@ class SkippedDataSource extends DataTableSource {
   final List<SkippedSentence> skipped;
   final BuildContext context;
   final ModerationViewModel viewModel;
+  final Set<String> selectedIds;
+  final void Function(String id, String sentenceId, bool selected) onSelectionChanged;
+  final void Function(bool selectAll) onSelectAll;
 
-  SkippedDataSource(this.skipped, this.context, this.viewModel);
+  SkippedDataSource(
+    this.skipped,
+    this.context,
+    this.viewModel, {
+    required this.selectedIds,
+    required this.onSelectionChanged,
+    required this.onSelectAll,
+  });
+
+  @override
+  int get selectedRowCount => selectedIds.length;
 
   @override
   DataRow? getRow(int index) {
@@ -17,6 +30,11 @@ class SkippedDataSource extends DataTableSource {
     final item = skipped[index];
 
     return DataRow(
+      selected: selectedIds.contains(item.id),
+      onSelectChanged: (v) {
+        onSelectionChanged(item.id, item.sentenceId, v ?? false);
+        notifyListeners();
+      },
       cells: [
         DataCell(
           Text(
@@ -57,14 +75,19 @@ class SkippedDataSource extends DataTableSource {
           ),
         ),
         DataCell(
-          TextButton.icon(
-            onPressed: () =>
-                viewModel.unassignSkipped(item.id, item.sentenceId),
-            icon: const Icon(Icons.undo, size: 16),
-            label: const Text('Unassign'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.error,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          Tooltip(
+            message: 'Unassign',
+            child: Material(
+              color: AppColors.error.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => viewModel.unassignSkipped(item.id, item.sentenceId),
+                child: const Padding(
+                  padding: EdgeInsets.all(7),
+                  child: Icon(Icons.undo, size: 17, color: AppColors.error),
+                ),
+              ),
             ),
           ),
         ),
@@ -77,7 +100,4 @@ class SkippedDataSource extends DataTableSource {
 
   @override
   int get rowCount => skipped.length;
-
-  @override
-  int get selectedRowCount => 0;
 }

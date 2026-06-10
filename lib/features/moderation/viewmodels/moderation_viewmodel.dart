@@ -611,4 +611,34 @@ class ModerationViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> bulkUnassignSkipped(List<({String id, String sentenceId})> items) async {
+    try {
+      for (final item in items) {
+        await _repository.unassignSkipped(item.id, item.sentenceId);
+        _skippedTranslations.removeWhere((s) => s.id == item.id);
+      }
+      await _fetchStats();
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to bulk unassign: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> revertToSubmitted(String id) async {
+    try {
+      await _repository.revertToSubmitted(id);
+      final item = _acceptedTranslations.where((t) => t.id == id).firstOrNull;
+      _acceptedTranslations.removeWhere((t) => t.id == id);
+      if (item != null) {
+        _submittedTranslations.insert(0, item.copyWith(status: 'pending'));
+      }
+      await _fetchStats();
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to revert: $e';
+      notifyListeners();
+    }
+  }
 }

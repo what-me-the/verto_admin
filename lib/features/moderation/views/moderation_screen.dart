@@ -37,6 +37,10 @@ class _ModerationContentState extends State<ModerationContent>
   final _rejectedSearchCtrl = TextEditingController();
   final _skippedSearchCtrl = TextEditingController();
 
+  // Skipped tab bulk-selection state
+  final Set<String> _selectedSkippedIds = {};
+  final Map<String, String> _skippedSentenceIdMap = {};
+
   static const _bgColor = Color(0xFFF8FAFC);
   static const _sidebarBg = Color(0xFFFFFFFF);
   static const _cardBg = Color(0xFFFFFFFF);
@@ -357,6 +361,7 @@ class _ModerationContentState extends State<ModerationContent>
                     onSearch: vm.setAcceptedSearch,
                     showActions: false,
                     showEdit: true,
+                    showRevert: true,
                     emptyTitle: 'No accepted translations yet',
                     emptySubtitle: 'Approved translations will appear here.',
                     tableTitle: 'Accepted Translations',
@@ -489,6 +494,7 @@ class _ModerationContentState extends State<ModerationContent>
     required bool showActions,
     bool showEdit = false,
     bool showReview = false,
+    bool showRevert = false,
     required String emptyTitle,
     required String emptySubtitle,
     required String tableTitle,
@@ -512,6 +518,7 @@ class _ModerationContentState extends State<ModerationContent>
       showActions: showActions,
       showEdit: showEdit,
       showReview: showReview,
+      showRevert: showRevert,
     );
 
     return Column(
@@ -633,29 +640,108 @@ class _ModerationContentState extends State<ModerationContent>
       vm.filteredSkippedTranslations,
       context,
       vm,
+      selectedIds: _selectedSkippedIds,
+      onSelectionChanged: (id, sentenceId, selected) {
+        setState(() {
+          if (selected) {
+            _selectedSkippedIds.add(id);
+            _skippedSentenceIdMap[id] = sentenceId;
+          } else {
+            _selectedSkippedIds.remove(id);
+          }
+        });
+      },
+      onSelectAll: (selectAll) {
+        setState(() {
+          if (selectAll) {
+            for (final item in vm.filteredSkippedTranslations) {
+              _selectedSkippedIds.add(item.id);
+              _skippedSentenceIdMap[item.id] = item.sentenceId;
+            }
+          } else {
+            _selectedSkippedIds.clear();
+          }
+        });
+      },
     );
+
+    final bool hasSelection = _selectedSkippedIds.isNotEmpty;
 
     return Column(
       children: [
         _buildSearchExportRow(
           searchCtrl: _skippedSearchCtrl,
-          hint: 'Search by user, sentence or reasonâ€¦',
+          hint: 'Search by user, sentence or reason…',
           searchValue: vm.skippedSearchQuery,
           onSearch: vm.setSkippedSearchQuery,
           onExport: () => _exportSkipped(context, vm.filteredSkippedTranslations),
         ),
         const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            children: [
-              Text(
-                'Showing ${vm.filteredSkippedTranslations.length} of ${vm.skippedTranslations.length} records',
-                style: const TextStyle(color: _textSecondary, fontSize: 13),
+        // Bulk action toolbar
+        Row(
+          children: [
+            Text(
+              'Showing ${vm.filteredSkippedTranslations.length} of ${vm.skippedTranslations.length} records',
+              style: const TextStyle(color: _textSecondary, fontSize: 13),
+            ),
+            const Spacer(),
+            // Select all button
+            OutlinedButton.icon(
+              onPressed: () {
+                final allSelected = _selectedSkippedIds.length == vm.filteredSkippedTranslations.length;
+                setState(() {
+                  if (allSelected) {
+                    _selectedSkippedIds.clear();
+                  } else {
+                    for (final item in vm.filteredSkippedTranslations) {
+                      _selectedSkippedIds.add(item.id);
+                      _skippedSentenceIdMap[item.id] = item.sentenceId;
+                    }
+                  }
+                });
+              },
+              icon: Icon(
+                _selectedSkippedIds.length == vm.filteredSkippedTranslations.length
+                    ? Icons.deselect
+                    : Icons.select_all,
+                size: 16,
+              ),
+              label: Text(
+                _selectedSkippedIds.length == vm.filteredSkippedTranslations.length
+                    ? 'Deselect All'
+                    : 'Select All (${vm.filteredSkippedTranslations.length})',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _textPrimary,
+                side: const BorderSide(color: _borderColor),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            if (hasSelection) ...[
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final items = _selectedSkippedIds
+                      .map((id) => (id: id, sentenceId: _skippedSentenceIdMap[id]!))
+                      .toList();
+                  setState(() => _selectedSkippedIds.clear());
+                  await vm.bulkUnassignSkipped(items);
+                },
+                icon: const Icon(Icons.undo, size: 16),
+                label: Text('Unassign Selected (${_selectedSkippedIds.length})'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
             ],
-          ),
+          ],
         ),
+        const SizedBox(height: 8),
         Expanded(
           child: _buildTableCard(
             context: context,
@@ -669,14 +755,32 @@ class _ModerationContentState extends State<ModerationContent>
               ),
               child: PaginatedDataTable(
                 source: dataSource,
-                header: const Row(
+                header: Row(
                   children: [
-                    Icon(Icons.skip_next, color: _textSecondary, size: 20),
-                    SizedBox(width: 8),
-                    Text(
+                    const Icon(Icons.skip_next, color: _textSecondary, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
                       'Skipped List',
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                     ),
+                    if (hasSelection) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${_selectedSkippedIds.length} selected',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 sortColumnIndex: vm.skippedSortColumnIndex,
@@ -709,7 +813,7 @@ class _ModerationContentState extends State<ModerationContent>
                 columnSpacing: 24,
                 horizontalMargin: 24,
                 rowsPerPage: 10,
-                showCheckboxColumn: false,
+                showCheckboxColumn: true,
                 headingRowColor: WidgetStateProperty.all(
                   const Color(0xFFF9FAFB),
                 ),

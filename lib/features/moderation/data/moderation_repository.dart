@@ -329,13 +329,24 @@ class ModerationRepository {
   Future<void> unassignSkipped(String skipId, String sentenceId) async {
     try {
       await _client.from('skipped_sentences').delete().eq('id', skipId);
-      // Make sentence available again
       await _client
           .from('sentences')
           .update({'assigned_to': null})
           .eq('sentence_id', sentenceId);
     } catch (e) {
       debugPrint('Error unassigning skipped: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> revertToSubmitted(String attemptId) async {
+    try {
+      await _client
+          .from('translation_attempts')
+          .update({'status': 'pending'})
+          .eq('attempt_id', attemptId);
+    } catch (e) {
+      debugPrint('Error reverting to submitted: $e');
       rethrow;
     }
   }
